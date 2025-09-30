@@ -18,10 +18,10 @@
   <link rel="stylesheet" href="assets/mobirise/css/mbr-additional.css" type="text/css">
 
   <style>
-    :root { --header-h: 64px; }
-    .page-wrap { padding-top: calc(var(--header-h) + 16px); }
-    [id] { scroll-margin-top: calc(var(--header-h) + 16px); }
-    .blog-post{max-width:960px;margin:0 auto;padding:0 16px}
+    :root { --header-h: 80px; } /* fallback */
+    body { padding-top: calc(var(--header-h) + 24px); }
+    [id] { scroll-margin-top: calc(var(--header-h) + 24px); }
+    .container-narrow{max-width:960px;margin:0 auto;padding:0 16px}
     .meta{font-size:.9rem;opacity:.7}
     .content{margin-top:20px;line-height:1.6}
     .content img{max-width:100%;height:auto;display:block;margin:12px 0}
@@ -35,9 +35,7 @@
       <div class="container">
         <div class="navbar-brand">
           <span class="navbar-logo">
-            <a href="index.html">
-              <img src="assets/images/bw20logo-96x96.jpg" alt="CEANA Group" style="height: 3rem;">
-            </a>
+            <a href="index.html"><img src="assets/images/bw20logo-96x96.jpg" alt="CEANA Group" style="height: 3rem;"></a>
           </span>
           <span class="navbar-caption-wrap"><a class="navbar-caption text-black display-7" href="index.html">CEANA GROUP LLC</a></span>
         </div>
@@ -58,9 +56,12 @@
   </section>
 
   <!-- MAIN -->
-  <section class="page-wrap">
-    <div id="post-container" class="blog-post">Loading...</div>
+  <section>
+    <div id="post-container" class="container-narrow">Loading...</div>
   </section>
+
+  <!-- CONTACT FORM BLOCK (paste your existing Formoid section here) -->
+  <!-- <section ...> ... your contact form from index.html ... </section> -->
 
   <!-- FOOTER -->
   <section data-bs-version="5.1" class="footer3 cid-sFCygHrmNf" once="footers" id="footer3-24">
@@ -83,7 +84,7 @@
     </div>
   </section>
 
-  <!-- JS -->
+  <!-- Mobirise/Bootstrap JS -->
   <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
   <script src="assets/parallax/jarallax.js"></script>
   <script src="assets/smoothscroll/smooth-scroll.js"></script>
@@ -97,14 +98,13 @@
   <script>
     function setHeaderOffset() {
       const header = document.querySelector('section.menu');
-      const h = header ? header.getBoundingClientRect().height : 0;
+      const h = header ? header.scrollHeight : 0;
       document.documentElement.style.setProperty('--header-h', h + 'px');
     }
     window.addEventListener('load', setHeaderOffset);
     window.addEventListener('resize', setHeaderOffset);
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.navbar-toggler')) setTimeout(setHeaderOffset, 350);
-    });
+    document.addEventListener('shown.bs.collapse', setHeaderOffset, true);
+    document.addEventListener('hidden.bs.collapse', setHeaderOffset, true);
   </script>
 </body>
 </html>
