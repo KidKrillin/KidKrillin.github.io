@@ -11,5 +11,8 @@ export const firebaseConfig = {
 
 // Optional: restrict admin access by email. Leave empty to allow any Google account to access /admin.
 export const adminAllowlist = [
-  // "you@domain.com"
+  "info@ceanagroup.com",
+  "ceanagroup@gmail.com",
+  "akshayssutrave@gmail.com"
 ];
+
