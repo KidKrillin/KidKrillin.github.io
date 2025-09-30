@@ -6,6 +6,9 @@ import { firebaseConfig, adminAllowlist } from "../js/firebase-init.js";
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const GOOGLE_CLIENT_ID = "265134911609-4euj5d1r7c7budo10invid8vb6eriko7.apps.googleusercontent.com";
+const DRIVE_FOLDER_ID  = "1kLTX8xROslkv9sqLt6USR-_npG-nwud1";
+
 
 const els = {
   signedOut: document.getElementById("signed-out"),
