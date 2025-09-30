@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin</title>
+  <link rel="stylesheet" href="../assets/mobirise/css/mbr-additional.css">
+  <style>
+    .container{max-width:1100px;margin:32px auto;padding:0 16px}
+    .card{border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+    button{padding:6px 10px;border:1px solid #ddd;border-radius:8px;cursor:pointer}
+    input, textarea{width:100%;padding:8px;border:1px solid #ddd;border-radius:8px}
+    label{font-weight:600;margin-top:8px;display:block}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    @media(max-width:800px){.row{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="signed-out" class="card">
+      <h1>Admin login</h1>
+      <p>Use your allowed Google account to continue.</p>
+      <button id="login-btn">Sign in with Google</button>
+    </div>
+
+    <div id="signed-in" style="display:none">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <h2 style="margin:0">Dashboard</h2>
+            <p style="margin:0">Signed in as <span id="user-email"></span></p>
+          </div>
+          <button id="logout-btn">Sign out</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">Blog manager</h3>
+        <table>
+          <thead><tr><th>Title</th><th>Slug</th><th>Published</th><th>Actions</th></tr></thead>
+          <tbody id="posts-tbody"><tr><td colspan="4">Loading...</td></tr></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <h3 id="form-mode" style="margin-top:0">New post</h3>
+        <form id="post-form">
+          <input type="hidden" id="post-id">
+          <div class="row">
+            <div>
+              <label for="title">Title</label>
+              <input id="title" placeholder="Post title" required>
+            </div>
+            <div>
+              <label for="slug">Slug</label>
+              <input id="slug" placeholder="auto-from-title if left blank">
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label for="author">Author</label>
+              <input id="author" placeholder="Your name">
+            </div>
+            <div>
+              <label for="excerpt">Excerpt</label>
+              <input id="excerpt" placeholder="Short summary">
+            </div>
+          </div>
+          <label for="content">Content</label>
+          <textarea id="content" rows="10" placeholder="Write your post here"></textarea>
+
+          <label for="gdrive-images">Images (Google Drive)</label>
+          <input type="file" id="gdrive-images" multiple accept="image/*">
+          <button type="button" id="gdrive-upload-btn">Upload to Google Drive and insert</button>
+          <div id="gdrive-uploaded" style="margin-top:8px"></div>
+
+          <label style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="published"> Published
+          </label>
+          <div style="margin-top:8px">
+            <button type="submit">Save</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">Form submissions</h3>
+        <p>This table shows submissions captured in Firestore if you migrate away from Formoid.</p>
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Message</th><th>Created</th></tr></thead>
+          <tbody id="submissions-tbody"><tr><td colspan="4">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <!-- Google Identity for Drive OAuth -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script type="module" src="../assets/js/admin.js"></script>
+</body>
+</html>
