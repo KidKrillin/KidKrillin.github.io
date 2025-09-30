@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <style>
+    :root { --header-h: 64px; }                 /* fallback */
+    .page-wrap { padding-top: calc(var(--header-h) + 16px); }
+    [id] { scroll-margin-top: calc(var(--header-h) + 16px); }  /* anchors don't hide under header */
+  </style>
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Blog</title>
@@ -30,6 +36,20 @@
   <link rel="preload" as="style" href="assets/mobirise/css/mbr-additional.css?v=NP4HOg"><link rel="stylesheet" href="assets/mobirise/css/mbr-additional.css?v=NP4HOg" type="text/css">
   <!-- Site made with Mobirise Website Builder v6.1.4, https://mobirise.com -->
 </head>
+  <script>
+  function setHeaderOffset() {
+    const header = document.querySelector('section.menu');
+    const h = header ? header.getBoundingClientRect().height : 0;
+    document.documentElement.style.setProperty('--header-h', h + 'px');
+  }
+  window.addEventListener('load', setHeaderOffset);
+  window.addEventListener('resize', setHeaderOffset);
+  // Recalculate when the mobile navbar expands/collapses
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('.navbar-toggler')) setTimeout(setHeaderOffset, 350);
+  });
+</script>
+
 <body>
    <section data-bs-version="5.1" class="menu menu2 cid-sFCw1qGFAI" once="menu" id="menu2-23">
     
