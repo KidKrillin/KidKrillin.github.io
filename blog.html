@@ -1,29 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <style>
-    :root { --header-h: 64px; }                 /* fallback */
-    .page-wrap { padding-top: calc(var(--header-h) + 16px); }
-    [id] { scroll-margin-top: calc(var(--header-h) + 16px); }  /* anchors don't hide under header */
-  </style>
-
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Blog</title>
-  <link rel="stylesheet" href="assets/mobirise/css/mbr-additional.css">
-  <style>
-    .blog-card{border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0}
-    .meta{font-size:.9rem;opacity:.7}
-  </style>
-
-  <!-- Site made with Mobirise Website Builder v6.1.4, https://mobirise.com -->
-  <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="generator" content="Mobirise v6.1.4, mobirise.com">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+  <title>Blog</title>
   <link rel="shortcut icon" href="assets/images/bw20logo-96x96.jpg" type="image/x-icon">
-  <meta name="description" content="">
-  
+  <meta name="description" content="Insights, case studies, and updates from CEANA Group.">
+  <link rel="canonical" href="https://ceanagroup.com/blog.html">
+
+  <!-- Mobirise CSS -->
   <link rel="stylesheet" href="assets/web/assets/mobirise-icons2/mobirise2.css">
   <link rel="stylesheet" href="assets/web/assets/mobirise-icons/mobirise-icons.css">
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
@@ -31,88 +17,109 @@
   <link rel="stylesheet" href="assets/dropdown/css/style.css">
   <link rel="stylesheet" href="assets/socicon/css/styles.css">
   <link rel="stylesheet" href="assets/theme/css/style.css">
-  <link rel="preload" href="https://fonts.googleapis.com/css?family=Jost:100,200,300,400,500,600,700,800,900,100i,200i,300i,400i,500i,600i,700i,800i,900i&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Jost:100,200,300,400,500,600,700,800,900,100i,200i,300i,400i,500i,600i,700i,800i,900i&display=swap"></noscript>
-  <link rel="preload" as="style" href="assets/mobirise/css/mbr-additional.css?v=NP4HOg"><link rel="stylesheet" href="assets/mobirise/css/mbr-additional.css?v=NP4HOg" type="text/css">
-  <!-- Site made with Mobirise Website Builder v6.1.4, https://mobirise.com -->
+  <link rel="stylesheet" href="assets/mobirise/css/mbr-additional.css" type="text/css">
+
+  <style>
+    :root { --header-h: 64px; }
+    .page-wrap { padding-top: calc(var(--header-h) + 16px); }
+    [id] { scroll-margin-top: calc(var(--header-h) + 16px); }
+    .blog-card{border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:12px 0}
+    .meta{font-size:.9rem;opacity:.7}
+    .container-narrow{max-width:960px;margin:0 auto;padding:0 16px}
+  </style>
+
+  <!-- Schema -->
+  <script type="application/ld+json">
+  { "@context":"https://schema.org", "@type":"Blog",
+    "name":"CEANA Group Blog", "url":"https://ceanagroup.com/blog.html",
+    "publisher":{ "@type":"Organization","name":"CEANA Group","url":"https://ceanagroup.com" } }
+  </script>
 </head>
-  <script>
-  function setHeaderOffset() {
-    const header = document.querySelector('section.menu');
-    const h = header ? header.getBoundingClientRect().height : 0;
-    document.documentElement.style.setProperty('--header-h', h + 'px');
-  }
-  window.addEventListener('load', setHeaderOffset);
-  window.addEventListener('resize', setHeaderOffset);
-  // Recalculate when the mobile navbar expands/collapses
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('.navbar-toggler')) setTimeout(setHeaderOffset, 350);
-  });
-</script>
-
 <body>
-   <section data-bs-version="5.1" class="menu menu2 cid-sFCw1qGFAI" once="menu" id="menu2-23">
-    
+
+  <!-- HEADER -->
+  <section data-bs-version="5.1" class="menu menu2 cid-sFCw1qGFAI" once="menu" id="menu2-23">
     <nav class="navbar navbar-dropdown navbar-expand-lg">
-        <div class="container">
-            <div class="navbar-brand">
-                <span class="navbar-logo">
-                    <a href="https://www.ceanagroup.com/">
-                        <img src="assets/images/bw20logo-96x96.jpg" alt="Mobirise Website Builder" style="height: 3rem;">
-                    </a>
-                </span>
-                <span class="navbar-caption-wrap"><a class="navbar-caption text-black display-7" href="https://www.ceanagroup.com/">CEANA GROUP LLC</a></span>
-            </div>
-            <button class="navbar-toggler" type="button" data-toggle="collapse" data-bs-toggle="collapse" data-target="#navbarSupportedContent" data-bs-target="#navbarSupportedContent" aria-controls="navbarNavAltMarkup" aria-expanded="false" aria-label="Toggle navigation">
-                <div class="hamburger">
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                    <span></span>
-                </div>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                <ul class="navbar-nav nav-dropdown" data-app-modern-menu="true"><li class="nav-item"><a class="nav-link link text-black text-primary display-4" href="index.html">Home</a></li>
-                    <li class="nav-item"><a class="nav-link link text-black text-primary display-4" href="AboutUs.html">About</a></li>
-                    <li class="nav-item"><a class="nav-link link text-black text-primary display-4" href="index.html#content17-3">FAQ</a>
-                    </li>
-<li class="nav-item"><a class="nav-link link text-black display-4" href="blog.html">Blog</a></li>
-</ul>
-                
-                <div class="navbar-buttons mbr-section-btn"><a class="btn btn-secondary display-4" href="GetStarted.html">
-                        Get Started</a></div>
-            </div>
+      <div class="container">
+        <div class="navbar-brand">
+          <span class="navbar-logo">
+            <a href="index.html">
+              <img src="assets/images/bw20logo-96x96.jpg" alt="CEANA Group" style="height: 3rem;">
+            </a>
+          </span>
+          <span class="navbar-caption-wrap"><a class="navbar-caption text-black display-7" href="index.html">CEANA GROUP LLC</a></span>
         </div>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
+                aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+          <div class="hamburger"><span></span><span></span><span></span><span></span></div>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav nav-dropdown" data-app-modern-menu="true">
+            <li class="nav-item"><a class="nav-link link text-black text-primary display-4" href="index.html">Home</a></li>
+            <li class="nav-item"><a class="nav-link link text-black text-primary display-4" href="AboutUs.html">About</a></li>
+            <li class="nav-item"><a class="nav-link link text-black text-primary display-4" href="index.html#content17-3">FAQ</a></li>
+            <li class="nav-item"><a class="nav-link link text-black display-4" href="blog.html">Blog</a></li>
+          </ul>
+        </div>
+      </div>
     </nav>
-</section>
-
-  <section class="container" style="max-width:960px;margin:40px auto;padding:0 16px">
-    <h1>Blog</h1>
-    <div id="blog-list">Loading posts...</div>
   </section>
-  <script type="module" src="assets/js/blog-public.js"></script>
-  <section data-bs-version="5.1" class="footer3 cid-sFCygHrmNf" once="footers" id="footer3-24">
-        
-    <div class="container">
-        <div class="row align-center mbr-white">
-            <div class="row row-links">
-              <ul class="foot-menu">
-                <li class="foot-menu-item mbr-fonts-style display-7"><a href="index.html" class="text-white text-primary">Home</a></li>
-                <li class="foot-menu-item mbr-fonts-style display-7"><a href="AboutUs.html" class="text-white text-primary">About</a></li>
-                <li class="foot-menu-item mbr-fonts-style display-7"><a href="index.html#contacts2-1r" class="text-white text-primary">Contact</a></li>
-                <li class="foot-menu-item mbr-fonts-style display-7"><a href="/admin/" class="text-white text-primary">Admin</a></li>
-              </ul>
-            </div>
 
-            
-            <div class="row row-copirayt">
-                <p class="mbr-text mb-0 mbr-fonts-style mbr-white align-center display-7">
-                    © Copyright 2025 Ceana Group LLC. All Rights Reserved.
-                </p>
-            </div>
-        </div>
+  <!-- MAIN -->
+  <section class="page-wrap">
+    <div class="container-narrow">
+      <h1>Blog</h1>
+      <div id="blog-list">Loading posts...</div>
     </div>
-</section>
-  
+  </section>
+
+  <!-- FOOTER -->
+  <section data-bs-version="5.1" class="footer3 cid-sFCygHrmNf" once="footers" id="footer3-24">
+    <div class="container">
+      <div class="row align-center mbr-white">
+        <div class="row row-links">
+          <ul class="foot-menu">
+            <li class="foot-menu-item mbr-fonts-style display-7"><a href="index.html" class="text-white text-primary">Home</a></li>
+            <li class="foot-menu-item mbr-fonts-style display-7"><a href="AboutUs.html" class="text-white text-primary">About</a></li>
+            <li class="foot-menu-item mbr-fonts-style display-7"><a href="index.html#contacts2-1r" class="text-white text-primary">Contact</a></li>
+            <li class="foot-menu-item mbr-fonts-style display-7"><a href="/admin/" class="text-white text-primary">Admin</a></li>
+          </ul>
+        </div>
+        <div class="row row-copirayt">
+          <p class="mbr-text mb-0 mbr-fonts-style mbr-white align-center display-7">
+            © Copyright 2025 Ceana Group LLC. All Rights Reserved.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JS -->
+  <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/parallax/jarallax.js"></script>
+  <script src="assets/smoothscroll/smooth-scroll.js"></script>
+  <script src="assets/dropdown/js/navbar-dropdown.js"></script>
+  <script src="assets/theme/js/script.js"></script>
+
+  <!-- Blog list loader -->
+  <script type="module" src="assets/js/blog-public.js"></script>
+
+  <!-- Dynamic header offset -->
+  <script>
+    function setHeaderOffset() {
+      const header = document.querySelector('section.menu');
+      const h = header ? header.getBoundingClientRect().height : 0;
+      document.documentElement.style.setProperty('--header-h', h + 'px');
+    }
+    window.addEventListener('load', setHeaderOffset);
+    window.addEventListener('resize', setHeaderOffset);
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('.navbar-toggler')) setTimeout(setHeaderOffset, 350);
+    });
+  </script>
+
+  <!-- Paste your existing Formoid section here if you want the form on the blog page -->
+  <!-- <section>... your contact form block ...</section> -->
+
 </body>
 </html>
