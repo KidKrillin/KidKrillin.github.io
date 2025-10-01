@@ -5,24 +5,28 @@ import { firebaseConfig } from "./firebase-init.js";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const qp = new URL(location.href).searchParams;
-const byId = (id) => document.getElementById(id);
+const getParam = (name) => new URL(location.href).searchParams.get(name);
+const norm = (s) => (s ?? "").toString().trim().toLowerCase();
 
 async function renderPost() {
-  const container = byId("post-container");
+  const container = document.getElementById("post-container");
   if (!container) return;
 
-  const slug = (qp.get("slug") || "").trim().toLowerCase();
+  const slug = norm(getParam("slug"));
   if (!slug) { container.textContent = "Missing slug."; return; }
 
   try {
-    // Exact match only (no composite index required)
-    const q1 = query(collection(db, "posts"), where("slug", "==", slug), limit(1));
+    // Must include published == true to satisfy your Firestore rules
+    const q1 = query(
+      collection(db, "posts"),
+      where("slug", "==", slug),
+      where("published", "==", true),
+      limit(1)
+    );
     const snap = await getDocs(q1);
     if (snap.empty) { container.textContent = "Post not found."; return; }
 
     const p = snap.docs[0].data();
-    if (!p.published) { container.textContent = "Post not found."; return; }
 
     document.title = (p.title || "Post") + " | Blog";
     const html = typeof p.contentHtml === "string"
@@ -41,4 +45,5 @@ async function renderPost() {
     container.textContent = "Failed to load post.";
   }
 }
+
 document.addEventListener("DOMContentLoaded", renderPost);
