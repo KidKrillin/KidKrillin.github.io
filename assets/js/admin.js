@@ -1,4 +1,4 @@
-// assets/js/admin.js  — rollback, no Drive code
+// assets/js/admin.js — rollback + click-to-edit for published posts
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
@@ -74,6 +74,27 @@ els.title?.addEventListener("input", () => {
 });
 els.slug?.addEventListener("input", () => { els.slug.dataset.touched = "1"; });
 
+function fillEditor(p, slug){
+  els.title && (els.title.value = p.title || "");
+  els.slug && (els.slug.value = p.slug || slug || "");
+  els.author && (els.author.value = p.author || "");
+  els.content && (els.content.value = p.contentHtml || p.content || "");
+  els.excerpt && (els.excerpt.value = p.excerpt || excerptFrom(p.contentHtml || p.content || ""));
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function loadPostIntoEditor(slug){
+  try {
+    const ref = doc(db, "posts", slug);
+    const d = await getDoc(ref);                 // published posts are readable under your rules
+    if (!d.exists()) { alert("Post not found."); return; }
+    fillEditor(d.data(), slug);
+  } catch (e) {
+    console.error(e);
+    alert("Could not load post.");
+  }
+}
+
 async function savePost(publish=false){
   const user = auth.currentUser;
   if (!user) return alert("Sign in first.");
@@ -83,6 +104,8 @@ async function savePost(publish=false){
   if (!slug) return alert("Enter a title/slug.");
 
   const ref = doc(db, "posts", slug);
+  const existing = await getDoc(ref);
+
   const base = {
     slug,
     title: els.title.value || "",
@@ -95,7 +118,7 @@ async function savePost(publish=false){
   if (publish) {
     base.published = true;
     base.publishedAt = serverTimestamp();
-    base.createdAt = (await getDoc(ref)).exists() ? undefined : serverTimestamp();
+    if (!existing.exists()) base.createdAt = serverTimestamp();
   } else {
     base.published = false;
   }
@@ -111,15 +134,26 @@ els.publishBtn?.addEventListener("click", () => savePost(true));
 async function loadPublishedPostsList(){
   if (!els.postsList) return;
   els.postsList.innerHTML = "Loading...";
-  const qRef = query(collection(db, "posts"), where("published","==", true), limit(200));
-  const snap = await getDocs(qRef);
-  if (snap.empty) { els.postsList.textContent = "No published posts yet."; return; }
-  const items = snap.docs.map(d => d.data());
-  items.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
-  els.postsList.innerHTML = "";
-  items.forEach(p => {
-    const li = document.createElement("li");
-    li.textContent = `${p.title || p.slug} (${p.slug})`;
-    els.postsList.appendChild(li);
-  });
+  try {
+    const qRef = query(collection(db, "posts"), where("published","==", true), limit(200));
+    const snap = await getDocs(qRef);
+    if (snap.empty) { els.postsList.textContent = "No published posts yet."; return; }
+    const items = snap.docs.map(d => d.data());
+    items.sort((a,b) => (b.createdAt?.seconds||0) - (a.createdAt?.seconds||0));
+
+    els.postsList.innerHTML = "";
+    items.forEach(p => {
+      if (!p.slug) return;
+      const li = document.createElement("li");
+      li.innerHTML = `<a href="#" data-slug="${p.slug}">${p.title || p.slug}</a>`;
+      li.querySelector("a").addEventListener("click", (e) => {
+        e.preventDefault();
+        loadPostIntoEditor(p.slug);
+      });
+      els.postsList.appendChild(li);
+    });
+  } catch (e) {
+    console.error(e);
+    els.postsList.textContent = "Failed to load posts list.";
+  }
 }
