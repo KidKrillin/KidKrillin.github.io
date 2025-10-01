@@ -1,49 +1,50 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
-import { getFirestore, collection, query, where, getDocs, limit } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
-import { firebaseConfig } from "./firebase-init.js";
-
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-const getParam = (name) => new URL(location.href).searchParams.get(name);
-const norm = (s) => (s ?? "").toString().trim().toLowerCase();
-
-async function renderPost() {
-  const container = document.getElementById("post-container");
-  if (!container) return;
-
-  const slug = norm(getParam("slug"));
-  if (!slug) { container.textContent = "Missing slug."; return; }
-
+function extractDriveId(u) {
   try {
-    // Must include published == true to satisfy your Firestore rules
-    const q1 = query(
-      collection(db, "posts"),
-      where("slug", "==", slug),
-      where("published", "==", true),
-      limit(1)
-    );
-    const snap = await getDocs(q1);
-    if (snap.empty) { container.textContent = "Post not found."; return; }
-
-    const p = snap.docs[0].data();
-
-    document.title = (p.title || "Post") + " | Blog";
-    const html = typeof p.contentHtml === "string"
-      ? p.contentHtml
-      : ((p.content ?? "").toString().replace(/\n/g, "<br>"));
-
-    container.innerHTML = `
-      <article class="blog-post">
-        <h1>${p.title ? String(p.title) : "Untitled"}</h1>
-        <p class="meta">${p.author ? String(p.author) : ""}</p>
-        <div class="content">${html}</div>
-      </article>
-    `;
-  } catch (e) {
-    console.error(e);
-    container.textContent = "Failed to load post.";
-  }
+    const url = new URL(u);
+    if (url.hostname.includes('googleusercontent') && url.pathname.startsWith('/download')) {
+      return url.searchParams.get('id');
+    }
+    if (url.hostname === 'drive.google.com') {
+      if (url.pathname.startsWith('/file/d/')) return url.pathname.split('/')[3];
+      if (url.searchParams.get('id')) return url.searchParams.get('id');
+    }
+  } catch(_) {}
+  return null;
+}
+function toDriveCdn(html) {
+  if (typeof html !== 'string') return '';
+  return html
+    // file/d/{id}/view
+    .replace(/https?:\/\/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)\/view[^\s"'<>]*/g,
+             (_,id) => `https://lh3.googleusercontent.com/d/${id}=w1600`)
+    // open?id={id}  OR  uc?export=view&id={id}
+    .replace(/https?:\/\/drive\.google(?:usercontent)?\.com\/(?:open\?id=|uc\?[^"'<>]*id=)([A-Za-z0-9_-]+)/g,
+             (_,id) => `https://lh3.googleusercontent.com/d/${id}=w1600`)
+    // drive.usercontent.google.com/download?id={id}&...
+    .replace(/https?:\/\/drive\.usercontent\.google\.com\/download\?id=([A-Za-z0-9_-]+)[^"'<>]*/g,
+             (_,id) => `https://lh3.googleusercontent.com/d/${id}=w1600`);
 }
 
-document.addEventListener("DOMContentLoaded", renderPost);
+// …after you build `html` and before injecting:
+const normalized = toDriveCdn(raw);
+
+// inject
+container.innerHTML = `
+  <article class="blog-post">
+    <h1>${p.title ? String(p.title) : "Untitled"}</h1>
+    <p class="meta">${p.author ? String(p.author) : ""}</p>
+    <div class="content">${normalized}</div>
+  </article>
+`;
+
+// make imgs responsive + add fallback
+container.querySelectorAll('.content img').forEach(img => {
+  img.loading = 'lazy'; img.decoding = 'async';
+  img.style.maxWidth = '100%'; img.style.height = 'auto';
+  const id = extractDriveId(img.src);
+  if (!id) return;
+  img.addEventListener('error', () => {
+    // fallback to classic view URL if CDN variant fails
+    img.src = `https://drive.google.com/uc?export=view&id=${id}`;
+  }, { once:true });
+});
