@@ -163,108 +163,79 @@ els.postForm?.addEventListener("submit", async e => {
 });
 
 // ===== Google Drive upload (free) =====
-const GOOGLE_CLIENT_ID = "YOUR_CLIENT_ID.apps.googleusercontent.com"; // TODO: paste yours
-const DRIVE_FOLDER_ID  = "YOUR_DRIVE_FOLDER_ID"; // TODO: paste the folder ID from Drive
+// --- Google Drive auth + upload ---
+const GOOGLE_CLIENT_ID = "265134911609-4euj5d1r7c7budo10invid8vb6eriko7.apps.googleusercontent.com";
+const DRIVE_FOLDER_ID  = "1kLTX8xROslkv9sqLt6USR-_npG-nwud1";
 
 let driveAccessToken = null;
 let driveTokenClient = null;
 
 window.addEventListener("load", () => {
-  try {
-    driveTokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/drive.file",
-      callback: (tokenResponse) => {
-        driveAccessToken = tokenResponse.access_token;
-      }
-    });
-  } catch(e) {
-    console.warn("Google Identity script not yet loaded; Drive will init later.");
-  }
+  driveTokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: GOOGLE_CLIENT_ID,
+    scope: "https://www.googleapis.com/auth/drive.file",
+    callback: (resp) => { driveAccessToken = resp.access_token; }
+  });
 });
 
-async function ensureDriveToken() {
-  if (driveAccessToken) return;
-  await new Promise((resolve) => {
-    driveTokenClient.requestAccessToken();
-    setTimeout(resolve, 800);
+function getDriveTokenInteractive() {
+  return new Promise((resolve, reject) => {
+    if (driveAccessToken) return resolve(driveAccessToken);
+    driveTokenClient.callback = (resp) => {
+      if (resp && resp.access_token) { driveAccessToken = resp.access_token; resolve(driveAccessToken); }
+      else reject(new Error("No Drive access token"));
+    };
+    // Must be called inside a user gesture
+    driveTokenClient.requestAccessToken({ prompt: "consent" });
   });
-  if (!driveAccessToken) throw new Error("Drive authorization failed");
 }
 
-function toMultipartBody(file, metadata) {
-  const boundary = "xxxxxx" + Date.now();
-  const delimiter = `\r\n--${boundary}\r\n`;
-  const closeDelim = `\r\n--${boundary}--`;
-  const metaPart = 'Content-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata);
-  const blobHeader = `Content-Type: ${file.type || "application/octet-stream"}\r\n\r\n`;
-  return {
-    body: new Blob([delimiter, metaPart, delimiter, blobHeader, file, closeDelim],
-                   { type: "multipart/related; boundary=" + boundary }),
-    boundary
-  };
-}
-
-async function uploadToDrive(file, folderId) {
+async function uploadToDriveFormData(file, folderId) {
   const metadata = { name: file.name, parents: [folderId] };
-  const { body, boundary } = toMultipartBody(file, metadata);
-  const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart", {
+  const form = new FormData();
+  form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }));
+  form.append("file", file);
+  const res = await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true", {
     method: "POST",
-    headers: {
-      "Authorization": "Bearer " + driveAccessToken,
-      "Content-Type": "multipart/related; boundary=" + boundary
-    },
-    body
+    headers: { "Authorization": "Bearer " + driveAccessToken },
+    body: form
   });
-  if (!res.ok) throw new Error("Drive upload failed");
-  const data = await res.json();
-  return data.id;
+  if (!res.ok) throw new Error(`Drive upload failed ${res.status}: ${await res.text()}`);
+  return (await res.json()).id;
 }
 
 async function makePublic(fileId) {
-  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+  const r = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
     method: "POST",
-    headers: {
-      "Authorization": "Bearer " + driveAccessToken,
-      "Content-Type": "application/json"
-    },
+    headers: { "Authorization": "Bearer " + driveAccessToken, "Content-Type": "application/json" },
     body: JSON.stringify({ role: "reader", type: "anyone" })
   });
-  if (!res.ok) throw new Error("Failed to set public permission");
+  if (!r.ok) throw new Error(`Permission failed ${r.status}: ${await r.text()}`);
 }
 
-function driveViewUrl(fileId) {
-  return `https://drive.google.com/uc?export=view&id=${fileId}`;
-}
-
-// Hook UI
-const gdriveInput   = document.getElementById("gdrive-images");
-const gdriveBtn     = document.getElementById("gdrive-upload-btn");
-const gdriveList    = document.getElementById("gdrive-uploaded");
+const gdriveInput = document.getElementById("gdrive-images");
+const gdriveBtn = document.getElementById("gdrive-upload-btn");
+const gdriveList = document.getElementById("gdrive-uploaded");
 
 gdriveBtn?.addEventListener("click", async () => {
   try {
-    if (!gdriveInput?.files || gdriveInput.files.length === 0) {
-      alert("Choose one or more images first.");
-      return;
-    }
-    await ensureDriveToken();
-    const slug = els.slug.value || slugify(els.title.value) || `post-${Date.now()}`;
-    for (const file of gdriveInput.files) {
-      const renamed = new File([file], `${slug}-${file.name}`, { type: file.type });
-      const fileId = await uploadToDrive(renamed, DRIVE_FOLDER_ID);
-      await makePublic(fileId);
-      const url = driveViewUrl(fileId);
-      // Insert into content
-      els.content.value += `\n<p><img src="${url}" alt=""></p>\n`;
-      // Show link
+    if (!gdriveInput?.files || gdriveInput.files.length === 0) { alert("Choose one or more images first."); return; }
+    await getDriveTokenInteractive();                     // guaranteed user gesture
+    const slug = (document.getElementById("slug")?.value || document.getElementById("title")?.value || `post-${Date.now()}`)
+                  .toString().toLowerCase().replace(/\s+/g,"-").replace(/[^\w\-]+/g,"");
+    for (const f of gdriveInput.files) {
+      const renamed = new File([f], `${slug}-${f.name}`, { type: f.type });
+      const id = await uploadToDriveFormData(renamed, DRIVE_FOLDER_ID);
+      await makePublic(id);
+      const url = `https://drive.google.com/uc?export=view&id=${id}`;
+      document.getElementById("content").value += `\n<p><img src="${url}" alt=""></p>\n`;
       const a = document.createElement("a"); a.href = url; a.textContent = renamed.name; a.target = "_blank";
       gdriveList.appendChild(a); gdriveList.appendChild(document.createElement("br"));
     }
     alert("Images uploaded and inserted.");
   } catch (e) {
     console.error(e);
-    alert("Upload failed. Open DevTools for details.");
+    alert(e.message || "Upload failed. See console for details.");
   }
 });
-// ===== /Google Drive upload =====
+// --- end Drive section ---
