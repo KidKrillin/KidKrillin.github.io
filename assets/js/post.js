@@ -5,48 +5,65 @@ import { firebaseConfig } from "./firebase-init.js";
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-function getParam(name) {
-  return new URL(window.location.href).searchParams.get(name);
+const $ = (id) => document.getElementById(id);
+const norm = (s) => (s ?? "").toString().trim().toLowerCase();
+
+async function fetchPostBySlug(slugRaw) {
+  const slug = norm(slugRaw);
+  const postsRef = collection(db, "posts");
+
+  // 1) Exact match (fast, no composite index)
+  try {
+    const q1 = query(postsRef, where("slug", "==", slug), limit(1));
+    const snap1 = await getDocs(q1);
+    if (!snap1.empty) return { id: snap1.docs[0].id, ...snap1.docs[0].data() };
+  } catch (e) {
+    console.warn("Exact slug query failed:", e);
+  }
+
+  // 2) Fallback: scan and match case/space-insensitive (works around stray slugs)
+  try {
+    const all = await getDocs(postsRef);
+    let found = null;
+    all.forEach(d => {
+      const p = d.data();
+      if (norm(p.slug) === slug && !found) found = { id: d.id, ...p };
+    });
+    if (found) return found;
+  } catch (e) {
+    console.warn("Fallback scan failed:", e);
+  }
+
+  return null;
 }
 
-function el(html) {
-  const t = document.createElement("template");
-  t.innerHTML = html.trim();
-  return t.content.firstElementChild;
+function renderPostInto(container, p) {
+  const html = typeof p.contentHtml === "string"
+    ? p.contentHtml
+    : ((p.content ?? "").toString().replace(/\n/g, "<br>"));
+
+  container.innerHTML = `
+    <article class="blog-post">
+      <h1>${p.title ? String(p.title) : "Untitled"}</h1>
+      <p class="meta">${p.author ? String(p.author) : ""}</p>
+      <div class="content">${html}</div>
+    </article>
+  `;
 }
 
 async function renderPost() {
-  const container = document.getElementById("post-container");
+  const container = $("post-container");
   if (!container) return;
-  const slug = getParam("slug");
-  if (!slug) { container.textContent = "Missing slug."; return; }
+
+  const slugParam = new URL(location.href).searchParams.get("slug");
+  if (!slugParam) { container.textContent = "Missing slug."; return; }
+
   try {
-    // Fetch by slug only (no composite index needed)
-    const postsRef = collection(db, "posts");
-    const q = query(postsRef, where("slug", "==", slug), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) { container.textContent = "Post not found."; return; }
-
-    const doc = snap.docs[0];
-    const p = doc.data();
-
-    // Hide unpublished posts from public
-    if (!p.published) { container.textContent = "Post not found."; return; }
+    const p = await fetchPostBySlug(slugParam);
+    if (!p || !p.published) { container.textContent = "Post not found."; return; }
 
     document.title = (p.title || "Post") + " | Blog";
-    const pHtml = typeof p.contentHtml === "string"
-      ? p.contentHtml
-      : ((p.content || "").toString().replace(/\n/g, "<br>"));
-
-    container.innerHTML = "";
-    const article = el(`
-      <article class="blog-post">
-        <h1>${p.title ? String(p.title) : "Untitled"}</h1>
-        <p class="meta">${p.author ? String(p.author) : ""}</p>
-        <div class="content">${pHtml}</div>
-      </article>
-    `);
-    container.appendChild(article);
+    renderPostInto(container, p);
   } catch (e) {
     console.error(e);
     container.textContent = "Failed to load post.";
