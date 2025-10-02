@@ -1,5 +1,5 @@
-// assets/js/admin.js — stable, no pre-read on save; Drive upload + cache-first edit
-window.__ADMIN_VERSION__ = "admin-2025-10-01-5";
+// assets/js/admin.js — stable: lock current doc id, Unpublish, Delete, status tags, Drive upload
+window.__ADMIN_VERSION__ = "admin-2025-10-01-6";
 console.log("Loaded", window.__ADMIN_VERSION__);
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
@@ -7,7 +7,7 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, collection, query, where, getDocs, limit, serverTimestamp, getDoc
+  getFirestore, doc, setDoc, collection, query, where, getDocs, limit, serverTimestamp, getDoc, deleteDoc
 } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { firebaseConfig, adminAllowlist } from "./firebase-init.js";
 
@@ -16,7 +16,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ---------- Google Drive ----------
+// ---------- Google Drive (working setup) ----------
 const GOOGLE_CLIENT_ID = "265134911609-4euj5d1r7c7budo10invid8vb6eriko7.apps.googleusercontent.com";
 const DRIVE_FOLDER_ID  = "1kLTX8xROslkv9sqLt6USR-_npG-nwud1";
 
@@ -35,6 +35,8 @@ const els = {
   excerpt: $("excerpt"),
   saveBtn: $("save-draft"),
   publishBtn: $("publish-post"),
+  unpublishBtn: $("unpublish-post"),
+  deleteBtn: $("delete-post"),
   postsList: $("posts-list"),
   gdriveInput: $("gdrive-images"),
   gdriveBtn: $("gdrive-upload-btn"),
@@ -45,8 +47,11 @@ const say = (m) => { if (els.status) els.status.textContent = m; console.log("[a
 const slugify = (s) => (s||"").toLowerCase().trim().replace(/\s+/g,"-").replace(/[^\w\-]+/g,"").replace(/\-+/g,"-");
 const excerptFrom = (html, n=180) => { const d=document.createElement("div"); d.innerHTML=html||""; return (d.textContent||"").trim().slice(0,n); };
 
-// Cache so clicks don’t need extra reads (and to detect “new” on save)
+// Cache so clicks don’t need extra reads
 const postCache = new Map();
+
+// Track which doc id you loaded, so saves/unpublish/delete hit the same doc
+let currentDocId = null;
 
 // ---------- Auth ----------
 const provider = new GoogleAuthProvider();
@@ -81,14 +86,22 @@ onAuthStateChanged(auth, (user) => {
 els.loginBtn?.addEventListener("click", async () => { try { await doSignIn(); } catch (e) { alert(e.message || "Sign-in failed"); } });
 els.logoutBtn?.addEventListener("click", async () => { try { await signOut(auth); } catch(e){ console.error(e); } });
 
-// Keep slug synced from title unless manually edited
+// Keep slug synced from title unless manually edited (but once you load a post, we lock it)
 els.title?.addEventListener("input", () => {
-  if (!els.slug?.dataset?.touched) els.slug.value = slugify(els.title.value);
+  if (!els.slug?.dataset?.touched && currentDocId === null) els.slug.value = slugify(els.title.value);
 });
 els.slug?.addEventListener("input", () => { if (els.slug) els.slug.dataset.touched = "1"; });
 
 // ---------- Editor helpers ----------
+function clearEditor() {
+  currentDocId = null;
+  ["title","slug","author","content","excerpt"].forEach(id => els[id] && (els[id].value = ""));
+  if (els.slug) delete els.slug.dataset.touched;
+}
+
 function fillEditor(p, fallbackSlug="") {
+  currentDocId = p.slug || fallbackSlug || null;      // lock the current doc id
+  els.slug && (els.slug.dataset.touched = "1");       // prevent auto-reslug on title edits
   els.title && (els.title.value = p.title || "");
   els.slug && (els.slug.value = p.slug || fallbackSlug || "");
   els.author && (els.author.value = p.author || "");
@@ -102,13 +115,12 @@ async function loadPostIntoEditor(slug) {
     const cached = postCache.get(slug);
     if (cached) { fillEditor(cached, slug); return; }
 
-    // Fallback 1: query published (satisfies rules)
+    // Fallbacks if needed
     const qRef = query(collection(db, "posts"),
       where("slug","==", slug), where("published","==", true), limit(1));
     const snap = await getDocs(qRef);
     if (!snap.empty) { fillEditor(snap.docs[0].data(), slug); return; }
 
-    // Fallback 2: if admin, try direct read (drafts)
     const email = auth.currentUser?.email || "";
     if (adminAllowlist.includes(email)) {
       const d = await getDoc(doc(db, "posts", slug));
@@ -122,20 +134,23 @@ async function loadPostIntoEditor(slug) {
   }
 }
 
-// ---------- Save / Publish (NO pre-read) ----------
+// ---------- Save / Publish / Unpublish / Delete ----------
 async function savePost(publish=false) {
   const user = auth.currentUser;
   if (!user) return alert("Sign in first.");
   if (!adminAllowlist.includes(user.email || "")) return alert("Not authorized.");
 
-  const slug = slugify(els.slug?.value || els.title?.value || "");
-  if (!slug) return alert("Enter a title/slug.");
+  const inputSlug = slugify(els.slug?.value || els.title?.value || "");
+  if (!inputSlug) return alert("Enter a title/slug.");
 
-  const ref = doc(db, "posts", slug);
-  const isNew = !postCache.has(slug); // avoid getDoc read that rules would block
+  // decide target id: if you loaded a post, stick to its id unless you intentionally changed slug (rename)
+  const targetId = currentDocId || inputSlug;
+  const renaming = currentDocId && inputSlug && inputSlug !== currentDocId;
+
+  const ref = doc(db, "posts", renaming ? inputSlug : targetId);
 
   const base = {
-    slug,
+    slug: (renaming ? inputSlug : targetId),
     title: els.title?.value || "",
     author: els.author?.value || (user.email || ""),
     contentHtml: els.content?.value || "",
@@ -146,35 +161,63 @@ async function savePost(publish=false) {
   if (publish) {
     base.published = true;
     base.publishedAt = serverTimestamp();
-    if (isNew) base.createdAt = serverTimestamp();
+    if (!postCache.has(targetId) && !postCache.has(inputSlug)) base.createdAt = serverTimestamp();
   } else {
-    base.published = false; // yes: this unpublishes a previously published post
+    base.published = false; // Save draft = unpublish
   }
 
   await setDoc(ref, base, { merge: true });
 
-  // keep cache fresh
-  if (base.published) {
-    postCache.set(slug, { ...(postCache.get(slug) || {}), ...base });
+  // If renaming, delete the old doc id (optional; keeps DB tidy)
+  if (renaming) {
+    try { await deleteDoc(doc(db, "posts", currentDocId)); } catch(_) {}
+    currentDocId = inputSlug;
   } else {
-    postCache.delete(slug); // drafts won’t show in the published list
+    currentDocId = targetId;
   }
 
-  alert(publish ? "Post updated & published." : "Draft saved.");
-  loadPublishedPostsList().catch(console.error);
+  if (base.published) postCache.set(base.slug, { ...(postCache.get(base.slug) || {}), ...base });
+  else postCache.delete(base.slug);
+
+  alert(publish ? "Post published/updated." : "Draft saved (unpublished).");
+  await loadPublishedPostsList();
+}
+
+async function unpublishCurrent() {
+  if (!currentDocId) return alert("Load a post first.");
+  const user = auth.currentUser;
+  if (!user) return alert("Sign in first.");
+
+  const ref = doc(db, "posts", currentDocId);
+  await setDoc(ref, { published: false, updatedAt: serverTimestamp(), unpublishedAt: serverTimestamp() }, { merge: true });
+
+  postCache.delete(currentDocId);
+  alert("Post unpublished (saved as draft).");
+  await loadPublishedPostsList();
+}
+
+async function deleteCurrent() {
+  if (!currentDocId) return alert("Load a post first.");
+  if (!confirm("Delete this post permanently? This cannot be undone.")) return;
+  await deleteDoc(doc(db, "posts", currentDocId));
+  postCache.delete(currentDocId);
+  clearEditor();
+  alert("Post deleted.");
+  await loadPublishedPostsList();
 }
 
 els.saveBtn?.addEventListener("click", () => savePost(false));
 els.publishBtn?.addEventListener("click", () => savePost(true));
+els.unpublishBtn?.addEventListener("click", () => unpublishCurrent().catch(e => { console.error(e); alert(e.message || "Unpublish failed"); }));
+els.deleteBtn?.addEventListener("click", () => deleteCurrent().catch(e => { console.error(e); alert(e.message || "Delete failed"); }));
 
-// ---------- List & click-to-edit (fills cache) ----------
+// ---------- List & click-to-edit (fills cache, shows status) ----------
 async function loadPublishedPostsList() {
   if (!els.postsList) return;
   els.postsList.innerHTML = "Loading...";
   try {
     const qRef = query(collection(db, "posts"), where("published","==", true), limit(200));
     const snap = await getDocs(qRef);
-    if (snap.empty) { els.postsList.textContent = "No published posts yet."; return; }
 
     const items = snap.docs.map(d => d.data())
       .filter(p => p && p.slug)
@@ -184,10 +227,18 @@ async function loadPublishedPostsList() {
     items.forEach(p => postCache.set(p.slug, p));
 
     els.postsList.innerHTML = "";
+    if (items.length === 0) {
+      els.postsList.textContent = "No published posts yet.";
+      return;
+    }
+
     items.forEach(p => {
       const li = document.createElement("li");
+      const when = p.createdAt?.seconds ? new Date(p.createdAt.seconds * 1000).toLocaleDateString() : "";
       li.innerHTML = `
+        <span class="badge bg-success me-2">Published</span>
         <a href="#" data-slug="${p.slug}">${p.title || p.slug}</a>
+        <small class="text-muted"> ${when ? " · " + when : ""}</small>
         &nbsp;·&nbsp;<a href="/post.html?slug=${encodeURIComponent(p.slug)}" target="_blank">View</a>
       `;
       li.querySelector('a[data-slug]')?.addEventListener("click", (e) => {
@@ -202,7 +253,7 @@ async function loadPublishedPostsList() {
   }
 }
 
-// ---------- Google Drive upload (same stable flow you had working) ----------
+// ---------- Google Drive upload (unchanged, stable) ----------
 let driveAccessToken = null;
 let driveTokenClient = null;
 
