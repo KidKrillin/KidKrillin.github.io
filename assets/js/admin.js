@@ -328,6 +328,11 @@ function gdriveEmbedHtml(id, meta){
   if (w && h) style = ` style="--w:${w}px;--ar:${w}/${h}"`;
   return `<div class="gdrive-embed"${style}><iframe src="https://drive.google.com/file/d/${id}/preview" allow="autoplay" allowfullscreen loading="lazy"></iframe></div>`;
 }
+//2nd part
+const meta = await fetchDriveMeta(up.id).catch(() => null);
+const embed = gdriveEmbedHtml(up.id, meta);
+if (els.content) els.content.value += `\n${embed}\n`;
+
 //end of the new addition
 
 //updated code that was added
