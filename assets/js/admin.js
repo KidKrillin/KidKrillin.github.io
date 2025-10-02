@@ -313,6 +313,22 @@ async function makePublic(fileId) {
 function driveViewUrl(id) {
   return `https://drive.google.com/uc?export=view&id=${id}`;
 }
+//new code added here to get the image size to size the iframe
+async function fetchDriveMeta(fileId){
+  const r = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?fields=imageMediaMetadata(width,height)&supportsAllDrives=true`,
+    { headers:{ Authorization: "Bearer " + driveAccessToken } }
+  );
+  if (!r.ok) return null;
+  return r.json();
+}
+function gdriveEmbedHtml(id, meta){
+  let style = "";
+  const w = meta?.imageMediaMetadata?.width, h = meta?.imageMediaMetadata?.height;
+  if (w && h) style = ` style="--w:${w}px;--ar:${w}/${h}"`;
+  return `<div class="gdrive-embed"${style}><iframe src="https://drive.google.com/file/d/${id}/preview" allow="autoplay" allowfullscreen loading="lazy"></iframe></div>`;
+}
+//end of the new addition
 
 //updated code that was added
 function drivePreviewEmbed(id) {
