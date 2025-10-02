@@ -1,6 +1,5 @@
-// assets/js/admin.js — stable with Drive upload + cache-first click-to-edit
-// Version marker (helps confirm the new file is loaded)
-window.__ADMIN_VERSION__ = "admin-2025-10-01-3";
+// assets/js/admin.js — stable, no pre-read on save; Drive upload + cache-first edit
+window.__ADMIN_VERSION__ = "admin-2025-10-01-5";
 console.log("Loaded", window.__ADMIN_VERSION__);
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
@@ -8,30 +7,27 @@ import {
   getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-auth.js";
 import {
-  getFirestore, doc, setDoc, getDoc, collection, query, where, getDocs, limit, serverTimestamp
+  getFirestore, doc, setDoc, collection, query, where, getDocs, limit, serverTimestamp, getDoc
 } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-firestore.js";
 import { firebaseConfig, adminAllowlist } from "./firebase-init.js";
 
-// ----- Firebase -----
+// ---------- Firebase ----------
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ----- Google Drive (your working IDs) -----
+// ---------- Google Drive ----------
 const GOOGLE_CLIENT_ID = "265134911609-4euj5d1r7c7budo10invid8vb6eriko7.apps.googleusercontent.com";
 const DRIVE_FOLDER_ID  = "1kLTX8xROslkv9sqLt6USR-_npG-nwud1";
 
-// ----- DOM -----
+// ---------- DOM ----------
 const $ = (id) => document.getElementById(id);
 const els = {
-  // auth/ui
   loginBtn: $("signin-btn"),
   logoutBtn: $("logout-btn"),
   loginCard: $("login-card"),
   adminShell: $("admin-shell"),
   status: $("status"),
-
-  // editor
   title: $("title"),
   slug: $("slug"),
   author: $("author"),
@@ -39,11 +35,7 @@ const els = {
   excerpt: $("excerpt"),
   saveBtn: $("save-draft"),
   publishBtn: $("publish-post"),
-
-  // list
   postsList: $("posts-list"),
-
-  // drive
   gdriveInput: $("gdrive-images"),
   gdriveBtn: $("gdrive-upload-btn"),
   gdriveList: $("gdrive-uploaded"),
@@ -53,10 +45,10 @@ const say = (m) => { if (els.status) els.status.textContent = m; console.log("[a
 const slugify = (s) => (s||"").toLowerCase().trim().replace(/\s+/g,"-").replace(/[^\w\-]+/g,"").replace(/\-+/g,"-");
 const excerptFrom = (html, n=180) => { const d=document.createElement("div"); d.innerHTML=html||""; return (d.textContent||"").trim().slice(0,n); };
 
-// Cache of published posts so we don’t re-read (avoids rule hits)
+// Cache so clicks don’t need extra reads (and to detect “new” on save)
 const postCache = new Map();
 
-// ----- Auth -----
+// ---------- Auth ----------
 const provider = new GoogleAuthProvider();
 provider.setCustomParameters({ prompt: "select_account" });
 
@@ -86,18 +78,16 @@ onAuthStateChanged(auth, (user) => {
   }
 });
 
-els.loginBtn?.addEventListener("click", async () => {
-  try { await doSignIn(); } catch (e) { alert(e.message || "Sign-in failed"); }
-});
+els.loginBtn?.addEventListener("click", async () => { try { await doSignIn(); } catch (e) { alert(e.message || "Sign-in failed"); } });
 els.logoutBtn?.addEventListener("click", async () => { try { await signOut(auth); } catch(e){ console.error(e); } });
 
-// keep slug synced from title unless manually edited
+// Keep slug synced from title unless manually edited
 els.title?.addEventListener("input", () => {
   if (!els.slug?.dataset?.touched) els.slug.value = slugify(els.title.value);
 });
 els.slug?.addEventListener("input", () => { if (els.slug) els.slug.dataset.touched = "1"; });
 
-// ----- Editor helpers -----
+// ---------- Editor helpers ----------
 function fillEditor(p, fallbackSlug="") {
   els.title && (els.title.value = p.title || "");
   els.slug && (els.slug.value = p.slug || fallbackSlug || "");
@@ -107,19 +97,18 @@ function fillEditor(p, fallbackSlug="") {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-// Cache-first loader (no extra read when possible)
 async function loadPostIntoEditor(slug) {
   try {
     const cached = postCache.get(slug);
     if (cached) { fillEditor(cached, slug); return; }
 
-    // Fallback 1: query published (satisfies your rules)
+    // Fallback 1: query published (satisfies rules)
     const qRef = query(collection(db, "posts"),
       where("slug","==", slug), where("published","==", true), limit(1));
     const snap = await getDocs(qRef);
     if (!snap.empty) { fillEditor(snap.docs[0].data(), slug); return; }
 
-    // Fallback 2: if admin, try direct read (draft/unpublished edits)
+    // Fallback 2: if admin, try direct read (drafts)
     const email = auth.currentUser?.email || "";
     if (adminAllowlist.includes(email)) {
       const d = await getDoc(doc(db, "posts", slug));
@@ -133,7 +122,7 @@ async function loadPostIntoEditor(slug) {
   }
 }
 
-// ----- Save / Publish -----
+// ---------- Save / Publish (NO pre-read) ----------
 async function savePost(publish=false) {
   const user = auth.currentUser;
   if (!user) return alert("Sign in first.");
@@ -143,7 +132,7 @@ async function savePost(publish=false) {
   if (!slug) return alert("Enter a title/slug.");
 
   const ref = doc(db, "posts", slug);
-  const exists = (await getDoc(ref)).exists();
+  const isNew = !postCache.has(slug); // avoid getDoc read that rules would block
 
   const base = {
     slug,
@@ -157,14 +146,20 @@ async function savePost(publish=false) {
   if (publish) {
     base.published = true;
     base.publishedAt = serverTimestamp();
-    if (!exists) base.createdAt = serverTimestamp();
+    if (isNew) base.createdAt = serverTimestamp();
   } else {
-    base.published = false;
+    base.published = false; // yes: this unpublishes a previously published post
   }
 
   await setDoc(ref, base, { merge: true });
-  // update cache if it’s published (so click-to-edit stays instant)
-  if (base.published) postCache.set(slug, { ...postCache.get(slug), ...base });
+
+  // keep cache fresh
+  if (base.published) {
+    postCache.set(slug, { ...(postCache.get(slug) || {}), ...base });
+  } else {
+    postCache.delete(slug); // drafts won’t show in the published list
+  }
+
   alert(publish ? "Post updated & published." : "Draft saved.");
   loadPublishedPostsList().catch(console.error);
 }
@@ -172,7 +167,7 @@ async function savePost(publish=false) {
 els.saveBtn?.addEventListener("click", () => savePost(false));
 els.publishBtn?.addEventListener("click", () => savePost(true));
 
-// ----- List & click-to-edit (published only; fills cache) -----
+// ---------- List & click-to-edit (fills cache) ----------
 async function loadPublishedPostsList() {
   if (!els.postsList) return;
   els.postsList.innerHTML = "Loading...";
@@ -195,8 +190,7 @@ async function loadPublishedPostsList() {
         <a href="#" data-slug="${p.slug}">${p.title || p.slug}</a>
         &nbsp;·&nbsp;<a href="/post.html?slug=${encodeURIComponent(p.slug)}" target="_blank">View</a>
       `;
-      const a = li.querySelector('a[data-slug]');
-      a.addEventListener("click", (e) => {
+      li.querySelector('a[data-slug]')?.addEventListener("click", (e) => {
         e.preventDefault(); e.stopPropagation();
         loadPostIntoEditor(p.slug);
       });
@@ -208,7 +202,7 @@ async function loadPublishedPostsList() {
   }
 }
 
-// ====== Google Drive upload (token flow; inserts uc?export=view) ======
+// ---------- Google Drive upload (same stable flow you had working) ----------
 let driveAccessToken = null;
 let driveTokenClient = null;
 
@@ -237,8 +231,7 @@ function getDriveTokenInteractive() {
       if (r && r.access_token) { driveAccessToken = r.access_token; resolve(driveAccessToken); }
       else reject(new Error("No Drive access token"));
     };
-    // must run inside user click
-    driveTokenClient.requestAccessToken({ prompt: "consent" });
+    driveTokenClient.requestAccessToken({ prompt: "consent" }); // within click
   });
 }
 
@@ -254,7 +247,7 @@ async function uploadToDriveFormData(file, folderId) {
   );
   const data = await res.json();
   if (!res.ok) throw new Error(`Drive upload failed ${res.status}: ${JSON.stringify(data)}`);
-  return data; // { id, name, ... }
+  return data;
 }
 
 async function makePublic(fileId) {
@@ -266,9 +259,7 @@ async function makePublic(fileId) {
   if (!r.ok) throw new Error(`Permission failed ${r.status}: ${await r.text()}`);
 }
 
-function driveViewUrl(id) {
-  return `https://drive.google.com/uc?export=view&id=${id}`;
-}
+function driveViewUrl(id) { return `https://drive.google.com/uc?export=view&id=${id}`; }
 
 els.gdriveBtn?.addEventListener("click", async () => {
   try {
