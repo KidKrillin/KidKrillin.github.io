@@ -113,38 +113,35 @@ async function loadPostIntoEditor(slug) {
 }
 
 // ----- Save / Publish -----
-async function savePost(publish=false) {
-  const user = auth.currentUser;
-  if (!user) return alert("Sign in first.");
-  if (!adminAllowlist.includes(user.email || "")) return alert("Not authorized.");
+async function loadPostIntoEditor(slug) {
+  try {
+    // Satisfy your rules by querying only published docs
+    const qRef = query(
+      collection(db, "posts"),
+      where("slug", "==", slug),
+      where("published", "==", true),
+      limit(1)
+    );
+    const snap = await getDocs(qRef);
+    if (!snap.empty) {
+      fillEditor(snap.docs[0].data(), slug);
+      return;
+    }
 
-  const slug = slugify(els.slug?.value || els.title?.value || "");
-  if (!slug) return alert("Enter a title/slug.");
+    // Fallback: if you're an authorized admin, try direct read (for drafts/unpublished)
+    const email = auth.currentUser?.email || "";
+    if (adminAllowlist.includes(email)) {
+      const d = await getDoc(doc(db, "posts", slug));
+      if (d.exists()) { fillEditor(d.data(), slug); return; }
+    }
 
-  const ref = doc(db, "posts", slug);
-  const exists = (await getDoc(ref)).exists();
-
-  const base = {
-    slug,
-    title: els.title?.value || "",
-    author: els.author?.value || (user.email || ""),
-    contentHtml: els.content?.value || "",
-    excerpt: els.excerpt?.value || excerptFrom(els.content?.value || ""),
-    updatedAt: serverTimestamp(),
-  };
-
-  if (publish) {
-    base.published = true;
-    base.publishedAt = serverTimestamp();
-    if (!exists) base.createdAt = serverTimestamp();
-  } else {
-    base.published = false;
+    alert("Post not found or not published.");
+  } catch (e) {
+    console.error(e);
+    alert(e.message || "Could not load post.");
   }
-
-  await setDoc(ref, base, { merge: true });
-  alert(publish ? "Post updated & published." : "Draft saved.");
-  loadPublishedPostsList().catch(console.error);
 }
+
 
 els.saveBtn?.addEventListener("click", () => savePost(false));
 els.publishBtn?.addEventListener("click", () => savePost(true));
