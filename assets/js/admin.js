@@ -311,9 +311,14 @@ async function makePublic(fileId) {
 }
 
 function driveViewUrl(id) {
-  // Stable for hotlinking; renders as a plain image (no Google chrome)
-  return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`;
+  return `https://drive.google.com/uc?export=view&id=${id}`;
 }
+
+//updated code that was added
+function drivePreviewEmbed(id) {
+  return `<div class="gdrive-embed"><iframe src="https://drive.google.com/file/d/${id}/preview" allow="autoplay" allowfullscreen loading="lazy"></iframe></div>`;
+}
+//this was the new thingy
 
 els.gdriveBtn?.addEventListener("click", async () => {
   try {
@@ -328,8 +333,16 @@ els.gdriveBtn?.addEventListener("click", async () => {
       const up = await uploadToDriveFormData(renamed, DRIVE_FOLDER_ID);
       await makePublic(up.id);
 
-      const url = driveViewUrl(up.id);
-      if (els.content) els.content.value += `\n<p><img src="${url}" alt=""></p>\n`;
+      // OLD (remove):
+      // const url = driveViewUrl(up.id);
+      // if (els.content) els.content.value += `\n<p><img src="${url}" alt=""></p>\n`;
+      
+      // NEW (insert iframe embed):
+      const embed = drivePreviewEmbed(up.id);
+      if (els.content) els.content.value += `\n${embed}\n`;
+      
+      // (Optional: keep the link list for reference)
+
 
       if (els.gdriveList) {
         const a = document.createElement("a");
