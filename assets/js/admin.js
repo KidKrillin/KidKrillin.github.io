@@ -1,4 +1,8 @@
-// assets/js/admin.js — stable with Drive upload + click-to-edit
+// assets/js/admin.js — stable with Drive upload + cache-first click-to-edit
+// Version marker (helps confirm the new file is loaded)
+window.__ADMIN_VERSION__ = "admin-2025-10-01-3";
+console.log("Loaded", window.__ADMIN_VERSION__);
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.1/firebase-app.js";
 import {
   getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut
@@ -13,7 +17,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// ----- Google Drive (use the client ID and folder you gave me) -----
+// ----- Google Drive (your working IDs) -----
 const GOOGLE_CLIENT_ID = "265134911609-4euj5d1r7c7budo10invid8vb6eriko7.apps.googleusercontent.com";
 const DRIVE_FOLDER_ID  = "1kLTX8xROslkv9sqLt6USR-_npG-nwud1";
 
@@ -48,6 +52,9 @@ const els = {
 const say = (m) => { if (els.status) els.status.textContent = m; console.log("[admin]", m); };
 const slugify = (s) => (s||"").toLowerCase().trim().replace(/\s+/g,"-").replace(/[^\w\-]+/g,"").replace(/\-+/g,"-");
 const excerptFrom = (html, n=180) => { const d=document.createElement("div"); d.innerHTML=html||""; return (d.textContent||"").trim().slice(0,n); };
+
+// Cache of published posts so we don’t re-read (avoids rule hits)
+const postCache = new Map();
 
 // ----- Auth -----
 const provider = new GoogleAuthProvider();
@@ -100,35 +107,19 @@ function fillEditor(p, fallbackSlug="") {
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+// Cache-first loader (no extra read when possible)
 async function loadPostIntoEditor(slug) {
   try {
-    const ref = doc(db, "posts", slug);
-    const d = await getDoc(ref); // allowed for published posts under your rules
-    if (!d.exists()) { alert("Post not found."); return; }
-    fillEditor(d.data(), slug);
-  } catch (e) {
-    console.error(e);
-    alert("Could not load post.");
-  }
-}
+    const cached = postCache.get(slug);
+    if (cached) { fillEditor(cached, slug); return; }
 
-// ----- Save / Publish -----
-async function loadPostIntoEditor(slug) {
-  try {
-    // Satisfy your rules by querying only published docs
-    const qRef = query(
-      collection(db, "posts"),
-      where("slug", "==", slug),
-      where("published", "==", true),
-      limit(1)
-    );
+    // Fallback 1: query published (satisfies your rules)
+    const qRef = query(collection(db, "posts"),
+      where("slug","==", slug), where("published","==", true), limit(1));
     const snap = await getDocs(qRef);
-    if (!snap.empty) {
-      fillEditor(snap.docs[0].data(), slug);
-      return;
-    }
+    if (!snap.empty) { fillEditor(snap.docs[0].data(), slug); return; }
 
-    // Fallback: if you're an authorized admin, try direct read (for drafts/unpublished)
+    // Fallback 2: if admin, try direct read (draft/unpublished edits)
     const email = auth.currentUser?.email || "";
     if (adminAllowlist.includes(email)) {
       const d = await getDoc(doc(db, "posts", slug));
@@ -142,11 +133,46 @@ async function loadPostIntoEditor(slug) {
   }
 }
 
+// ----- Save / Publish -----
+async function savePost(publish=false) {
+  const user = auth.currentUser;
+  if (!user) return alert("Sign in first.");
+  if (!adminAllowlist.includes(user.email || "")) return alert("Not authorized.");
+
+  const slug = slugify(els.slug?.value || els.title?.value || "");
+  if (!slug) return alert("Enter a title/slug.");
+
+  const ref = doc(db, "posts", slug);
+  const exists = (await getDoc(ref)).exists();
+
+  const base = {
+    slug,
+    title: els.title?.value || "",
+    author: els.author?.value || (user.email || ""),
+    contentHtml: els.content?.value || "",
+    excerpt: els.excerpt?.value || excerptFrom(els.content?.value || ""),
+    updatedAt: serverTimestamp(),
+  };
+
+  if (publish) {
+    base.published = true;
+    base.publishedAt = serverTimestamp();
+    if (!exists) base.createdAt = serverTimestamp();
+  } else {
+    base.published = false;
+  }
+
+  await setDoc(ref, base, { merge: true });
+  // update cache if it’s published (so click-to-edit stays instant)
+  if (base.published) postCache.set(slug, { ...postCache.get(slug), ...base });
+  alert(publish ? "Post updated & published." : "Draft saved.");
+  loadPublishedPostsList().catch(console.error);
+}
 
 els.saveBtn?.addEventListener("click", () => savePost(false));
 els.publishBtn?.addEventListener("click", () => savePost(true));
 
-// ----- List & click-to-edit (published only) -----
+// ----- List & click-to-edit (published only; fills cache) -----
 async function loadPublishedPostsList() {
   if (!els.postsList) return;
   els.postsList.innerHTML = "Loading...";
@@ -154,19 +180,24 @@ async function loadPublishedPostsList() {
     const qRef = query(collection(db, "posts"), where("published","==", true), limit(200));
     const snap = await getDocs(qRef);
     if (snap.empty) { els.postsList.textContent = "No published posts yet."; return; }
-    const items = snap.docs.map(d => d.data());
-    items.sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+    const items = snap.docs.map(d => d.data())
+      .filter(p => p && p.slug)
+      .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+    postCache.clear();
+    items.forEach(p => postCache.set(p.slug, p));
 
     els.postsList.innerHTML = "";
     items.forEach(p => {
-      if (!p.slug) return;
       const li = document.createElement("li");
       li.innerHTML = `
         <a href="#" data-slug="${p.slug}">${p.title || p.slug}</a>
-        &nbsp;·&nbsp;<a href="../post.html?slug=${encodeURIComponent(p.slug)}" target="_blank">View</a>
+        &nbsp;·&nbsp;<a href="/post.html?slug=${encodeURIComponent(p.slug)}" target="_blank">View</a>
       `;
-      li.querySelector('a[data-slug]')?.addEventListener("click", (e) => {
-        e.preventDefault();
+      const a = li.querySelector('a[data-slug]');
+      a.addEventListener("click", (e) => {
+        e.preventDefault(); e.stopPropagation();
         loadPostIntoEditor(p.slug);
       });
       els.postsList.appendChild(li);
@@ -177,7 +208,7 @@ async function loadPublishedPostsList() {
   }
 }
 
-// ====== Google Drive upload (token flow, inserts uc?export=view) ======
+// ====== Google Drive upload (token flow; inserts uc?export=view) ======
 let driveAccessToken = null;
 let driveTokenClient = null;
 
@@ -245,10 +276,10 @@ els.gdriveBtn?.addEventListener("click", async () => {
     await getDriveTokenInteractive();
 
     const base = els.slug?.value || els.title?.value || `post-${Date.now()}`;
-    const slug = slugify(base);
+    const s = slugify(base);
 
     for (const f of els.gdriveInput.files) {
-      const renamed = new File([f], `${slug}-${f.name}`, { type: f.type });
+      const renamed = new File([f], `${s}-${f.name}`, { type: f.type });
       const up = await uploadToDriveFormData(renamed, DRIVE_FOLDER_ID);
       await makePublic(up.id);
 
