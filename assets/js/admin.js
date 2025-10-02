@@ -310,7 +310,10 @@ async function makePublic(fileId) {
   if (!r.ok) throw new Error(`Permission failed ${r.status}: ${await r.text()}`);
 }
 
-function driveViewUrl(id) { return `https://drive.google.com/uc?export=view&id=${id}`; }
+function driveViewUrl(id) {
+  // Stable for hotlinking; renders as a plain image (no Google chrome)
+  return `https://drive.google.com/thumbnail?id=${id}&sz=w1600`;
+}
 
 els.gdriveBtn?.addEventListener("click", async () => {
   try {
